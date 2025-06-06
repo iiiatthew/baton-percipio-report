@@ -42,9 +42,10 @@ Running the connector without ConductorOne credentials will trigger one-shot mod
 
 ```bash
 baton-percipio-report \
-  --api-token="your-token" \
-  --organization-id="your-org-id" \
-  --lookback-days=1 \
+  --api-token <PERCIPIO_API_TOKEN> \
+  --organization-id <PERCIPIO_ORG_ID> \
+  --lookback-days 1 \
+  --log-level debug
 ```
 
 #### Validating the generated c1z file
@@ -71,11 +72,10 @@ Run as a service for ConductorOne:
 
 ```bash
 baton-percipio-report \
-  --api-token="your-token" \
-  --organization-id="your-org-id" \
-  --client-id="your-c1-client-id" \
-  --client-secret="your-c1-client-secret" \
-  --lookback-years=10
+  --api-token <PERCIPIO_API_TOKEN> \
+  --organization-id <PERCIPIO_ORG_ID> \
+  --client-id <BATON_CLIENT_ID> \
+  --client-secret <BATON_CLIENT_SECRET> \
 ```
 
 # `baton-percipio-report` Command Line Usage
@@ -84,8 +84,8 @@ baton-percipio-report \
 baton-percipio-report
 
 Usage:
-  baton-percipio-report[flags]
-  baton-percipio-report[command]
+  baton-percipio-report [flags]
+  baton-percipio-report [command]
 
 Available Commands:
   capabilities       Get connector capabilities
@@ -105,5 +105,5 @@ Flags:
       --organization-id string    required: The Percipio Organization ID ($BATON_ORGANIZATION_ID)
   -v, --version                   version for baton-percipio-report
 
-Use "baton-percipio-report[command] --help" for more information about a command.
+Use "baton-percipio-report [command] --help" for more information about a command.
 ```

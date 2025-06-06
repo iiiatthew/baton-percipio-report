@@ -11,7 +11,7 @@ func annotationsForUserResourceType() annotations.Annotations {
 	return annos
 }
 
-// The user resource type is for all user objects from the database.
+// The user resource type is for all user objects from the learning activity report.
 var userResourceType = &v2.ResourceType{
 	Id:          "user",
 	DisplayName: "User",

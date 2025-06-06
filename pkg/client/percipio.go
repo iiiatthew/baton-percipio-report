@@ -20,7 +20,6 @@ const (
 	ApiPathLearningActivityReport = "/reporting/v1/organizations/%s/report-requests/learning-activity"
 	ApiPathReport                 = "/reporting/v1/organizations/%s/report-requests/%s"
 	BaseApiUrl                    = "https://api.percipio.com"
-	ReportLookBackDefault         = 10 * time.Hour * 24 * 365 // 10 years
 )
 
 type Client struct {
@@ -74,16 +73,27 @@ func New(
 // get the actual report data.
 func (c *Client) GenerateLearningActivityReport(
 	ctx context.Context,
+	lookbackPeriod time.Duration,
 ) (
 	*v2.RateLimitDescription,
 	error,
 ) {
+	logger := ctxzap.Extract(ctx)
 	now := time.Now()
+	
+	reportStart := now.Add(-lookbackPeriod)
+	
 	body := ReportConfigurations{
 		End:         now,
-		Start:       now.Add(-ReportLookBackDefault),
+		Start:       reportStart,
 		ContentType: "Course,Assessment",
 	}
+	
+	logger.Info("Initiating learning activity report generation",
+		zap.Time("report_start_date", reportStart),
+		zap.Time("report_end_date", now),
+		zap.Duration("lookback_period", lookbackPeriod),
+		zap.String("content_types", body.ContentType))
 
 	var target ReportStatus
 	response, ratelimitData, err := c.post(
@@ -93,12 +103,17 @@ func (c *Client) GenerateLearningActivityReport(
 		&target,
 	)
 	if err != nil {
+		logger.Error("Failed to initiate report generation", zap.Error(err))
 		return ratelimitData, err
 	}
 	defer response.Body.Close()
 
 	// Should include ID and "PENDING".
 	c.ReportStatus = target
+	
+	logger.Debug("Report generation initiated",
+		zap.String("report_id", target.Id),
+		zap.String("report_status", target.Status))
 
 	return ratelimitData, nil
 }
@@ -115,7 +130,9 @@ func (c *Client) GetLearningActivityReport(
 	)
 
 	l := ctxzap.Extract(ctx)
+	var attempts int
 	for i := 0; i < config.RetryAttemptsMaximum; i++ {
+		attempts = i + 1
 		// Use an anonymous function to ensure proper resource cleanup with defer
 		shouldBreak := false
 		err := func() error {
@@ -153,11 +170,12 @@ func (c *Client) GetLearningActivityReport(
 			// Response can be a report status if the report isn't done processing, or the report. Try status first.
 			err = json.Unmarshal(bodyBytes, &c.ReportStatus)
 			if err == nil {
-				l.Debug("report status",
+				l.Debug("Report still processing, will retry",
 					zap.String("status", c.ReportStatus.Status),
-					zap.Int("attempt", i),
-					zap.Int("retry_after_seconds", config.RetryAfterSeconds),
-					zap.Int("retry_attempts_maximum", config.RetryAttemptsMaximum))
+					zap.Int("attempt", i+1),
+					zap.Int("max_attempts", config.RetryAttemptsMaximum),
+					zap.Duration("wait_before_retry", config.RetryAfterSeconds*time.Second),
+					zap.String("report_id", c.ReportStatus.Id))
 				if c.ReportStatus.Status == "FAILED" {
 					return fmt.Errorf("report generation failed: %v", c.ReportStatus)
 				}
@@ -197,12 +215,30 @@ func (c *Client) GetLearningActivityReport(
 	}
 
 	c.ReportStatus.Status = "done"
-	l.Debug("loading report")
+	l.Info("Report ready, loading data",
+		zap.Int("report_entries", len(target)),
+		zap.Int("polling_attempts", attempts),
+		zap.Duration("wait_time", time.Duration(attempts-1)*config.RetryAfterSeconds*time.Second))
 
 	// Store the raw report data
 	c.loadedReport = &target
+	
+	// Calculate approximate size
+	reportSizeBytes := 0
+	for _, entry := range target {
+		// Rough estimation of bytes per entry
+		reportSizeBytes += len(entry.UserId) + len(entry.EmailAddress) + 
+			len(entry.FirstName) + len(entry.LastName) +
+			len(entry.ContentId) + len(entry.ContentTitle) +
+			len(entry.Status) + 100 // overhead for other fields
+	}
+	
+	l.Debug("Report data statistics",
+		zap.Int("entries", len(target)),
+		zap.Int("estimated_size_bytes", reportSizeBytes),
+		zap.Float64("estimated_size_mb", float64(reportSizeBytes)/1024/1024))
 
-	err := c.StatusesStore.Load(&target)
+	err := c.StatusesStore.Load(ctx, &target)
 	if err != nil {
 		return ratelimitData, err
 	}

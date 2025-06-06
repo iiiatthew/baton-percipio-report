@@ -1,5 +1,13 @@
 package client
 
+import (
+	"context"
+	"time"
+
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
+)
+
 type StatusesStore map[string]map[string]string
 
 // Load given a Report (which again, can be on the order of 1 GB), and just
@@ -11,17 +19,41 @@ type StatusesStore map[string]map[string]string
 //	    "00000000-0000-0000-0000-000000000002": "completed",
 //	  },
 //	}
-func (r StatusesStore) Load(report *Report) error {
+func (r StatusesStore) Load(ctx context.Context, report *Report) error {
+	logger := ctxzap.Extract(ctx)
+	startTime := time.Now()
+	
+	logger.Debug("Starting to load status store from report",
+		zap.Int("report_entries", len(*report)))
+	
+	totalEntries := 0
+	uniqueCourses := 0
+	uniqueUsers := make(map[string]bool)
+	statusCounts := make(map[string]int)
+	
 	for _, row := range *report {
 		// Use ContentId as the key instead of ContentUUID
 		found, ok := r[row.ContentId]
 		if !ok {
 			found = make(map[string]string)
+			uniqueCourses++
 		}
 
-		found[row.UserId] = toStatus(row.Status)
+		status := toStatus(row.Status)
+		found[row.UserId] = status
 		r[row.ContentId] = found
+		
+		uniqueUsers[row.UserId] = true
+		statusCounts[status]++
+		totalEntries++
 	}
+
+	logger.Info("Status store loaded successfully",
+		zap.Int("total_entries", totalEntries),
+		zap.Int("unique_courses", uniqueCourses),
+		zap.Int("unique_users", len(uniqueUsers)),
+		zap.Any("status_distribution", statusCounts),
+		zap.Duration("duration", time.Since(startTime)))
 
 	return nil
 }

@@ -17,6 +17,7 @@ secrets.yaml
 *.xlsx
 *.xls
 *.c1z
+notes.txt
 
 # Binaries for programs and plugins
 bin/

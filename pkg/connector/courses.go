@@ -26,6 +26,7 @@ type courseBuilder struct {
 	client       *client.Client
 	resourceType *v2.ResourceType
 	report       *client.Report
+	connector    *Connector
 }
 
 func (o *courseBuilder) ResourceType(ctx context.Context) *v2.ResourceType {
@@ -74,14 +75,19 @@ func (o *courseBuilder) List(
 	outputResources := make([]*v2.Resource, 0)
 	var outputAnnotations annotations.Annotations
 
-	if o.report == nil || len(*o.report) == 0 {
+	// Ensure report is initialized for this sync
+	if err := o.connector.ensureReportInitialized(ctx); err != nil {
+		return nil, "", outputAnnotations, err
+	}
+
+	if o.connector.report == nil || len(*o.connector.report) == 0 {
 		logger.Warn("No report data available")
 		return outputResources, "", outputAnnotations, nil
 	}
 
 	// Extract unique courses from report
 	courseMap := make(map[string]client.Course)
-	for _, entry := range *o.report {
+	for _, entry := range *o.connector.report {
 		// Use contentId as the primary identifier
 		courseId := entry.ContentId
 		if courseId == "" {
@@ -117,7 +123,13 @@ func (o *courseBuilder) List(
 		outputResources = append(outputResources, courseResource0)
 	}
 
-	logger.Debug("Extracted courses from report", zap.Int("courseCount", len(outputResources)))
+	// Log deduplication statistics
+	totalDuplicates := len(*o.connector.report) - len(courseMap)
+	logger.Info("Course extraction completed",
+		zap.Int("total_report_entries", len(*o.connector.report)),
+		zap.Int("unique_courses", len(outputResources)),
+		zap.Int("duplicate_entries", totalDuplicates),
+		zap.Float64("deduplication_ratio", float64(totalDuplicates)/float64(len(*o.connector.report))))
 
 	// No pagination needed since we're returning all courses from the report
 	return outputResources, "", outputAnnotations, nil
@@ -169,30 +181,50 @@ func (o *courseBuilder) Grants(
 	annotations.Annotations,
 	error,
 ) {
-	_ = ctx // Report data is pre-loaded, no API calls needed
+	logger := ctxzap.Extract(ctx)
 	var outputAnnotations annotations.Annotations
 
-	// Report is already loaded during connector initialization
+	// Report is already loaded during sync initialization
 	// Just get the status map for this course
 	statusesMap := o.client.StatusesStore.Get(resource.Id.Resource)
+	
+	logger.Debug("Looking up grants for course",
+		zap.String("course_id", resource.Id.Resource),
+		zap.String("course_name", resource.DisplayName),
+		zap.Int("grant_count", len(statusesMap)))
 
 	grants := make([]*v2.Grant, 0)
+	statusCounts := make(map[string]int)
+	
 	for userId, status := range statusesMap {
 		principalId, err := resourceSdk.NewResourceID(userResourceType, userId)
 		if err != nil {
+			logger.Error("Failed to create principal ID",
+				zap.Error(err),
+				zap.String("user_id", userId),
+				zap.String("course_id", resource.Id.Resource))
 			return nil, "", outputAnnotations, err
 		}
 		nextGrant := grant.NewGrant(resource, status, principalId)
 		grants = append(grants, nextGrant)
+		statusCounts[status]++
+	}
+	
+	if len(grants) > 0 {
+		logger.Debug("Grants created for course",
+			zap.String("course_id", resource.Id.Resource),
+			zap.Int("total_grants", len(grants)),
+			zap.Any("status_distribution", statusCounts))
 	}
 
 	return grants, "", outputAnnotations, nil
 }
 
-func newCourseBuilder(client *client.Client, report *client.Report) *courseBuilder {
+func newCourseBuilder(client *client.Client, report *client.Report, connector *Connector) *courseBuilder {
 	return &courseBuilder{
 		client:       client,
 		resourceType: courseResourceType,
 		report:       report,
+		connector:    connector,
 	}
 }

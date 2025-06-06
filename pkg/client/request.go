@@ -6,9 +6,12 @@ import (
 	"net/http"
 	liburl "net/url"
 	"strconv"
+	"time"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 )
 
 func (c *Client) getUrl(
@@ -91,6 +94,9 @@ func (c *Client) doRequest(
 	*v2.RateLimitDescription,
 	error,
 ) {
+	logger := ctxzap.Extract(ctx)
+	startTime := time.Now()
+	
 	options := []uhttp.RequestOption{
 		uhttp.WithAcceptJSONHeader(),
 		WithBearerToken(c.bearerToken),
@@ -100,9 +106,20 @@ func (c *Client) doRequest(
 	}
 
 	url := c.getUrl(path, queryParameters)
+	
+	logger.Debug("Making API request",
+		zap.String("method", method),
+		zap.String("endpoint", url.String()),
+		zap.String("path", path),
+		zap.Any("query_params", queryParameters),
+		zap.Bool("has_payload", payload != nil))
 
 	request, err := c.wrapper.NewRequest(ctx, method, url, options...)
 	if err != nil {
+		logger.Error("Failed to create request",
+			zap.Error(err),
+			zap.String("method", method),
+			zap.String("endpoint", url.String()))
 		return nil, nil, err
 	}
 
@@ -112,9 +129,23 @@ func (c *Client) doRequest(
 		uhttp.WithRatelimitData(&ratelimitData),
 		uhttp.WithJSONResponse(target),
 	)
+	
 	if err != nil {
+		logger.Error("API request failed",
+			zap.Error(err),
+			zap.String("method", method),
+			zap.String("endpoint", url.String()),
+			zap.Duration("duration", time.Since(startTime)))
 		return response, &ratelimitData, fmt.Errorf("error making %s request to %s: %w", method, url, err)
 	}
+
+	logger.Debug("API request completed",
+		zap.String("method", method),
+		zap.String("endpoint", url.String()),
+		zap.Int("status_code", response.StatusCode),
+		zap.Duration("duration", time.Since(startTime)),
+		zap.Int("rate_limit_remaining", int(ratelimitData.Remaining)),
+		zap.Int64("rate_limit_reset_at", ratelimitData.ResetAt.Seconds))
 
 	return response, &ratelimitData, nil
 }

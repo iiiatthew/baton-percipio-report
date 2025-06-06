@@ -38,7 +38,25 @@ func TestConfigs(t *testing.T) {
 				"organization-id": "1",
 			},
 			true,
-			"valid",
+			"valid with default lookback years",
+		},
+		{
+			map[string]string{
+				"api-token":       "1",
+				"organization-id": "1",
+				"lookback-days":   "30",
+			},
+			true,
+			"valid with custom lookback days",
+		},
+		{
+			map[string]string{
+				"api-token":       "1",
+				"organization-id": "1",
+				"lookback-years":  "2",
+			},
+			true,
+			"valid with custom lookback years",
 		},
 	}
 

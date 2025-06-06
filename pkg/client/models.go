@@ -5,7 +5,6 @@ import "time"
 type Course struct {
 	Id   string `json:"id"`   // Will use contentId from report
 	Name string `json:"name"` // Will use contentTitle from report
-	// UUID string `json:"uuid"` // Will use contentUuid from report (commented for now)
 }
 
 type Report []ReportEntry
@@ -23,7 +22,7 @@ type ReportEntry struct {
 	LastName      string `json:"lastName"`
 	EmailAddress  string `json:"emailAddress"`
 	ContentId     string `json:"contentId"`
-	ContentUUID   string `json:"contentUiud"`
+	ContentUUID   string `json:"contentUuid"`
 	ContentTitle  string `json:"contentTitle"`
 	ContentType   string `json:"contentType"`
 	Status        string `json:"status"`

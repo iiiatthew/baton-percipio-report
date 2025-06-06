@@ -14,21 +14,25 @@ build:
 	go build -o ${OUTPUT_PATH} ./cmd/${PROJECT_NAME}
 
 # Build for Linux
-.PHONY: build-linux:
+.PHONY: build-linux
+build-linux:
 	GOOS=linux GOARCH=amd64 go build -mod=mod -o ${OUTPUT_PATH} ./cmd/${PROJECT_NAME}
 	GOOS=linux GOARCH=arm64 go build -mod=mod -o ${OUTPUT_PATH} ./cmd/${PROJECT_NAME}
 
 # Build for macOS
-.PHONY: build-macos:
+.PHONY: build-macos
+build-macos:
 	GOOS=darwin GOARCH=amd64 go build -mod=mod -o ${OUTPUT_PATH} ./cmd/${PROJECT_NAME}
 	GOOS=darwin GOARCH=arm64 go build -mod=mod -o ${OUTPUT_PATH} ./cmd/${PROJECT_NAME}
 
 # Build for Windows
-.PHONY: build-windows:
+.PHONY: build-windows
+build-windows:
 	GOOS=windows GOARCH=amd64 go build -mod=mod -o ${OUTPUT_PATH} ./cmd/${PROJECT_NAME}
 
 # Build for all platforms
-.PHONY: build-all: build-linux build-macos build-windows
+.PHONY: build-all
+build-all: build-linux build-macos build-windows
 
 .PHONY: update-deps
 update-deps:

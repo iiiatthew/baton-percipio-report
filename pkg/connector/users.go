@@ -22,6 +22,7 @@ type userBuilder struct {
 	client       *client.Client
 	resourceType *v2.ResourceType
 	report       *client.Report
+	connector    *Connector
 }
 
 func (o *userBuilder) ResourceType(ctx context.Context) *v2.ResourceType {
@@ -78,7 +79,7 @@ func userResource(user client.User, parentResourceID *v2.ResourceId) (*v2.Resour
 	return userResource0, nil
 }
 
-// List returns all the users from the database as resource objects.
+// List returns all the users from the learning activity report as resource objects.
 // Users include a UserTrait because they are the 'shape' of a standard user.
 func (o *userBuilder) List(
 	ctx context.Context,
@@ -96,7 +97,12 @@ func (o *userBuilder) List(
 	outputResources := make([]*v2.Resource, 0)
 	var outputAnnotations annotations.Annotations
 
-	if o.report == nil || len(*o.report) == 0 {
+	// Ensure report is initialized for this sync
+	if err := o.connector.ensureReportInitialized(ctx); err != nil {
+		return nil, "", outputAnnotations, err
+	}
+
+	if o.connector.report == nil || len(*o.connector.report) == 0 {
 		logger.Warn("No report data available")
 		return outputResources, "", outputAnnotations, nil
 	}
@@ -109,7 +115,7 @@ func (o *userBuilder) List(
 
 	userMap := make(map[string]userWithDate)
 
-	for _, entry := range *o.report {
+	for _, entry := range *o.connector.report {
 		// Determine the most recent date for this entry
 		// Priority: completedDate > lastAccess > firstAccess
 		var mostRecentDate string
@@ -176,7 +182,13 @@ func (o *userBuilder) List(
 		outputResources = append(outputResources, userResource0)
 	}
 
-	logger.Debug("Extracted users from report", zap.Int("userCount", len(outputResources)))
+	// Log deduplication statistics
+	totalDuplicates := len(*o.connector.report) - len(userMap)
+	logger.Info("User extraction completed",
+		zap.Int("total_report_entries", len(*o.connector.report)),
+		zap.Int("unique_users", len(outputResources)),
+		zap.Int("duplicate_entries", totalDuplicates),
+		zap.Float64("deduplication_ratio", float64(totalDuplicates)/float64(len(*o.connector.report))))
 
 	// No pagination needed since we're returning all users from the report
 	return outputResources, "", outputAnnotations, nil
@@ -210,10 +222,11 @@ func (o *userBuilder) Grants(
 	return nil, "", nil, nil
 }
 
-func newUserBuilder(client *client.Client, report *client.Report) *userBuilder {
+func newUserBuilder(client *client.Client, report *client.Report, connector *Connector) *userBuilder {
 	return &userBuilder{
 		client:       client,
 		resourceType: userResourceType,
 		report:       report,
+		connector:    connector,
 	}
 }

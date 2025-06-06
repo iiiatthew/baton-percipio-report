@@ -8,11 +8,11 @@ Check out [Baton](https://github.com/conductorone/baton) to learn more the proje
 
 ## Summary
 
-This connector is a refactored version of the standard `baton-percipio` connector which only calls Percipio's Reporting Services endpoints to fetch a Learning Activity Report instead of making separate calls to the Content Discovery and User Management Services endpoints.
+This connector is a refactored version of the standard `baton-percipio` connector. Unlike `baton-percipio`, this connector calls only the Percipio Reporting Services endpoints to fetch a learning activity report, instead of making separate calls to the Content Discovery and User Management Services endpoints.
 
 ### The key differences are:
 
-**Simplified Architecture**: Uses a single learning activity report to extract minimum required user and course data to retrieve course completion statuses instead of making multiple paginated API calls to separate endpoints.
+**Simplified Architecture**: Uses a single learning activity report to extract the minimum required user and course data in order to retrieve course completion statuses for the users instead of making multiple paginated API calls to separate endpoints.
 
 **Testing Optimization**: Introduces `--lookback-days` and `--lookback-years` flags to control how far back to fetch learning activity data for testing purposes. The standard `baton-percipio` connector is coded to request 10 years of data. For development and testing, use `--lookback-days=1` or `--lookback-days=30` to generate reports much faster and speed up connector testing and validation.
 

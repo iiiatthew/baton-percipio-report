@@ -12,7 +12,9 @@ env.yaml
 environment.yaml
 secrets.yaml
 
+
 # Data & Logging
+logs/
 *.log
 *.xlsx
 *.xls

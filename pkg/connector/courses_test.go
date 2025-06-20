@@ -19,25 +19,42 @@ func TestCoursesList(t *testing.T) {
 
 	t.Run("should get courses from report data", func(t *testing.T) {
 		connector := &Connector{
-			reportInitialized: true,
+			reportState: ReportCompleted,
 			report: &client.Report{
 				{
-					UserUUID:     "a77840ca-ea10-4da8-b64f-bddf714c47a0",
-					ContentUUID:  "1a3a3f54-b601-4d45-a234-038c980ee20f",
-					ContentTitle: "Introduction to Go",
+					UserId:       "michael.bolton@initech.com",
+					ContentId:    "bs_adg02_a23_enus",
+					ContentTitle: "Case Studies: Successful Data Privacy Implementations",
+					ContentType:  "Course",
 					Status:       "Completed",
 				},
 				{
-					UserUUID:     "a77840ca-ea10-4da8-b64f-bddf714c47a1",
-					ContentUUID:  "1a3a3f54-b601-4d45-a234-038c980ee20f", // Same course
-					ContentTitle: "Introduction to Go",
+					UserId:       "milton.waddams@initech.com",
+					ContentId:    "bs_adg02_a23_enus",
+					ContentTitle: "Case Studies: Successful Data Privacy Implementations",
+					ContentType:  "Course",
 					Status:       "Started",
 				},
 				{
-					UserUUID:     "a77840ca-ea10-4da8-b64f-bddf714c47a0",
-					ContentUUID:  "1a3a3f54-b601-4d45-a234-038c980ee20f",
+					UserId:       "michael.bolton@initech.com",
+					ContentId:    "another_course_id",
 					ContentTitle: "Advanced Go Patterns",
+					ContentType:  "Assessment",
 					Status:       "Active",
+				},
+				{
+					UserId:       "peter.gibbons@initech.com",
+					ContentId:    "bs_adg02_a23_enus",
+					ContentTitle: "Case Studies: Successful Data Privacy Implementations",
+					ContentType:  "Course",
+					Status:       "",
+				},
+				{
+					UserId:       "bill.lumbergh@initech.com",
+					ContentId:    "another_course_id",
+					ContentTitle: "Advanced Go Patterns",
+					ContentType:  "Assessment",
+					Status:       "UnknownStatus",
 				},
 			},
 		}
@@ -47,57 +64,35 @@ func TestCoursesList(t *testing.T) {
 		resources, nextToken, annotations, err := c.List(ctx, nil, &pagination.Token{})
 
 		require.NoError(t, err)
-		assert.Empty(t, nextToken) // No pagination for report-based data
+		assert.Empty(t, nextToken)
 		test.AssertNoRatelimitAnnotations(t, annotations)
-		require.Len(t, resources, 2) // 2 unique courses
+		require.Len(t, resources, 2)
 
-		// Check course1
-		course1 := findResourceById(resources, "course1")
+		course1 := findResourceById(resources, "bs_adg02_a23_enus")
 		require.NotNil(t, course1)
-		assert.Equal(t, "Introduction to Go", course1.DisplayName)
+		assert.Equal(t, "Case Studies: Successful Data Privacy Implementations (Course)", course1.DisplayName)
 
-		// Check course2
-		course2 := findResourceById(resources, "course2")
+		course2 := findResourceById(resources, "another_course_id")
 		require.NotNil(t, course2)
-		assert.Equal(t, "Advanced Go Patterns", course2.DisplayName)
+		assert.Equal(t, "Advanced Go Patterns (Assessment)", course2.DisplayName)
 	})
 
 	t.Run("should handle missing contentId", func(t *testing.T) {
 		connector := &Connector{
-			reportInitialized: true,
+			reportState: ReportCompleted,
 			report: &client.Report{
 				{
-					UserUUID:     "a77840ca-ea10-4da8-b64f-bddf714c47a0",
-					ContentUUID:  "", // Missing contentUUID
+					UserId:       "michael.bolton@initech.com",
+					ContentId:    "",
 					ContentTitle: "Course Without ID",
+					ContentType:  "Course",
 					Status:       "Completed",
 				},
 				{
-					UserUUID:     "a77840ca-ea10-4da8-b64f-bddf714c47a0",
-					ContentUUID:  "1a3a3f54-b601-4d45-a234-038c980ee20f",
-					ContentTitle: "Valid Course",
-					Status:       "Completed",
-				},
-			},
-		}
-
-		c := newCourseBuilder(nil, nil, connector)
-
-		resources, _, _, err := c.List(ctx, nil, &pagination.Token{})
-
-		require.NoError(t, err)
-		require.Len(t, resources, 1) // Should skip course without ID
-		assert.Equal(t, "course1", resources[0].Id.Resource)
-	})
-
-	t.Run("should handle missing title", func(t *testing.T) {
-		connector := &Connector{
-			reportInitialized: true,
-			report: &client.Report{
-				{
-					UserUUID:     "a77840ca-ea10-4da8-b64f-bddf714c47a0",
-					ContentUUID:  "1a3a3f54-b601-4d45-a234-038c980ee20f",
-					ContentTitle: "", // Missing title
+					UserId:       "michael.bolton@initech.com",
+					ContentId:    "bs_adg02_a23_enus",
+					ContentTitle: "Case Studies: Successful Data Privacy Implementations",
+					ContentType:  "Course",
 					Status:       "Completed",
 				},
 			},
@@ -109,11 +104,33 @@ func TestCoursesList(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Len(t, resources, 1)
-		// Should use course ID as display name when title is missing
-		assert.Equal(t, "course1", resources[0].DisplayName)
+		assert.Equal(t, "bs_adg02_a23_enus", resources[0].Id.Resource)
 	})
 
-	t.Run("should initialize report if not done", func(t *testing.T) {
+	t.Run("should handle missing title", func(t *testing.T) {
+		connector := &Connector{
+			reportState: ReportCompleted,
+			report: &client.Report{
+				{
+					UserId:       "michael.bolton@initech.com",
+					ContentId:    "bs_adg02_a23_enus",
+					ContentTitle: "",
+					ContentType:  "Course",
+					Status:       "Completed",
+				},
+			},
+		}
+
+		c := newCourseBuilder(nil, nil, connector)
+
+		resources, _, _, err := c.List(ctx, nil, &pagination.Token{})
+
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+		assert.Equal(t, " (Course)", resources[0].DisplayName)
+	})
+
+	t.Run("should wait for report generation", func(t *testing.T) {
 		server := test.FixturesServer()
 		defer server.Close()
 
@@ -121,9 +138,17 @@ func TestCoursesList(t *testing.T) {
 		require.NoError(t, err)
 
 		connector := &Connector{
-			client:            percipioClient,
-			reportLookback:    24 * time.Hour,
-			reportInitialized: false,
+			client:         percipioClient,
+			reportLookback: 24 * time.Hour,
+			reportState:    ReportCompleted,
+			report: &client.Report{
+				{
+					ContentId:    "test-course",
+					ContentTitle: "Test Course",
+					ContentType:  "Course",
+					Status:       "Completed",
+				},
+			},
 		}
 
 		c := newCourseBuilder(percipioClient, nil, connector)
@@ -131,8 +156,7 @@ func TestCoursesList(t *testing.T) {
 		resources, _, _, err := c.List(ctx, nil, &pagination.Token{})
 
 		require.NoError(t, err)
-		assert.True(t, connector.reportInitialized)
-		// Should have courses from test fixtures
+		assert.Equal(t, ReportCompleted, connector.reportState)
 		assert.Greater(t, len(resources), 0)
 	})
 }
@@ -142,10 +166,10 @@ func TestCoursesEntitlements(t *testing.T) {
 
 	c := newCourseBuilder(nil, nil, nil)
 	course := &v2.Resource{
-		DisplayName: "Test Course",
+		DisplayName: "Case Studies: Successful Data Privacy Implementations (Course)",
 		Id: &v2.ResourceId{
 			ResourceType: "course",
-			Resource:     "course1",
+			Resource:     "bs_adg02_a23_enus",
 		},
 	}
 
@@ -154,9 +178,8 @@ func TestCoursesEntitlements(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, nextToken)
 	assert.Nil(t, annotations)
-	require.Len(t, entitlements, 3) // assigned, completed, in_progress
+	require.Len(t, entitlements, 5)
 
-	// Check entitlement types
 	entitlementSlugs := make([]string, len(entitlements))
 	for i, ent := range entitlements {
 		entitlementSlugs[i] = ent.Slug
@@ -164,17 +187,20 @@ func TestCoursesEntitlements(t *testing.T) {
 	assert.Contains(t, entitlementSlugs, "assigned")
 	assert.Contains(t, entitlementSlugs, "completed")
 	assert.Contains(t, entitlementSlugs, "in_progress")
+	assert.Contains(t, entitlementSlugs, "no_status_reported")
+	assert.Contains(t, entitlementSlugs, "status_undefined")
 }
 
 func TestCoursesGrants(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("should return grants for course", func(t *testing.T) {
-		// Set up status store
 		statusStore := make(client.StatusesStore)
-		statusStore["course1"] = map[string]string{
-			"user1": "completed",
-			"user2": "in_progress",
+		statusStore["bs_adg02_a23_enus"] = map[string]string{
+			"michael.bolton@initech.com": "completed",
+			"milton.waddams@initech.com": "in_progress",
+			"peter.gibbons@initech.com":  "no_status_reported",
+			"bill.lumbergh@initech.com":  "status_undefined",
 		}
 
 		percipioClient := &client.Client{
@@ -183,10 +209,10 @@ func TestCoursesGrants(t *testing.T) {
 
 		c := newCourseBuilder(percipioClient, nil, nil)
 		course := &v2.Resource{
-			DisplayName: "Test Course",
+			DisplayName: "Case Studies: Successful Data Privacy Implementations (Course)",
 			Id: &v2.ResourceId{
 				ResourceType: "course",
-				Resource:     "course1",
+				Resource:     "bs_adg02_a23_enus",
 			},
 		}
 
@@ -195,22 +221,21 @@ func TestCoursesGrants(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, nextToken)
 		test.AssertNoRatelimitAnnotations(t, annotations)
-		require.Len(t, grants, 2)
+		require.Len(t, grants, 4)
 
-		// Check grants - extract entitlement name from entitlement ID
-		// Entitlement ID format is "resourceType:resourceId:entitlementName"
 		grantsByUser := make(map[string]string)
 		for _, grant := range grants {
 			entitlementId := grant.Entitlement.Id
-			// Split by ":" and get the last part (entitlement name)
 			parts := strings.Split(entitlementId, ":")
 			if len(parts) >= 3 {
 				entitlementName := parts[len(parts)-1]
 				grantsByUser[grant.Principal.Id.Resource] = entitlementName
 			}
 		}
-		assert.Equal(t, "completed", grantsByUser["user1"])
-		assert.Equal(t, "in_progress", grantsByUser["user2"])
+		assert.Equal(t, "completed", grantsByUser["michael.bolton@initech.com"])
+		assert.Equal(t, "in_progress", grantsByUser["milton.waddams@initech.com"])
+		assert.Equal(t, "no_status_reported", grantsByUser["peter.gibbons@initech.com"])
+		assert.Equal(t, "status_undefined", grantsByUser["bill.lumbergh@initech.com"])
 	})
 
 	t.Run("should handle course with no grants", func(t *testing.T) {
@@ -237,27 +262,27 @@ func TestCoursesGrants(t *testing.T) {
 func TestCourseResource(t *testing.T) {
 	t.Run("should create course resource with name", func(t *testing.T) {
 		course := client.Course{
-			Id:          "course1",
-			CourseTitle: "Test Course",
+			Id:          "bs_adg02_a23_enus",
+			CourseTitle: "Case Studies: Successful Data Privacy Implementations (Course)",
 		}
 
 		resource, err := courseResource(course, nil)
 
 		require.NoError(t, err)
-		assert.Equal(t, "Test Course", resource.DisplayName)
-		assert.Equal(t, "course1", resource.Id.Resource)
+		assert.Equal(t, "Case Studies: Successful Data Privacy Implementations (Course)", resource.DisplayName)
+		assert.Equal(t, "bs_adg02_a23_enus", resource.Id.Resource)
 		assert.Equal(t, "course", resource.Id.ResourceType)
 	})
 
-	t.Run("should use ID as display name when name is empty", func(t *testing.T) {
+	t.Run("should use title as display name when name is empty", func(t *testing.T) {
 		course := client.Course{
-			Id:          "course1",
+			Id:          "bs_adg02_a23_enus",
 			CourseTitle: "",
 		}
 
 		resource, err := courseResource(course, nil)
 
 		require.NoError(t, err)
-		assert.Equal(t, "course1", resource.DisplayName)
+		assert.Equal(t, "", resource.DisplayName)
 	})
 }

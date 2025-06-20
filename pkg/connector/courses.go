@@ -17,9 +17,11 @@ import (
 )
 
 const (
-	assignedEntitlement   = "assigned"
-	completedEntitlement  = "completed"
-	inProgressEntitlement = "in_progress"
+	assignedEntitlement         = "assigned"
+	completedEntitlement        = "completed"
+	inProgressEntitlement       = "in_progress"
+	noStatusReportedEntitlement = "no_status_reported"
+	statusUndefinedEntitlement  = "status_undefined"
 )
 
 type courseBuilder struct {
@@ -40,14 +42,8 @@ func courseResource(course client.Course, parentResourceID *v2.ResourceId) (*v2.
 		resourceSdk.WithParentResourceID(parentResourceID),
 	}
 
-	// Use course name, fallback to ID if name is empty
-	displayName := course.CourseTitle
-	if displayName == "" {
-		displayName = course.CourseTitle
-	}
-
 	resource, err := resourceSdk.NewResource(
-		displayName,
+		course.CourseTitle,
 		courseResourceType,
 		course.Id,
 		resourceOpts...,
@@ -75,8 +71,8 @@ func (o *courseBuilder) List(
 	outputResources := make([]*v2.Resource, 0)
 	var outputAnnotations annotations.Annotations
 
-	// Ensure report is initialized for this sync
-	if err := o.connector.ensureReportInitialized(ctx); err != nil {
+	// Wait for report to be generated during validation
+	if err := o.connector.waitForReport(ctx); err != nil {
 		return nil, "", outputAnnotations, err
 	}
 
@@ -88,26 +84,19 @@ func (o *courseBuilder) List(
 	// Extract unique courses from report
 	courseMap := make(map[string]client.Course)
 	for _, entry := range *o.connector.report {
-		courseId := entry.ContentUUID
+		courseId := entry.ContentId
+
+		// Skip entries with empty contentId
 		if courseId == "" {
-			logger.Warn("Course missing contentUUID, skipping",
-				zap.String("contentTitle", entry.ContentTitle),
-				zap.String("contentUuid", entry.ContentUUID),
-				zap.String("contentType", entry.ContentType))
 			continue
 		}
 
 		if _, exists := courseMap[courseId]; !exists {
-			// Check for missing title
-			if entry.ContentTitle == "" {
-				logger.Warn("Course missing title",
-					zap.String("courseId", courseId),
-					zap.String("contentType", entry.ContentType))
-			}
+			displayName := fmt.Sprintf("%s (%s)", entry.ContentTitle, entry.ContentType)
 
 			courseMap[courseId] = client.Course{
 				Id:          courseId,
-				CourseTitle: entry.ContentTitle,
+				CourseTitle: displayName,
 			}
 		}
 	}
@@ -164,6 +153,20 @@ func (o *courseBuilder) Entitlements(
 			entitlement.WithGrantableTo(userResourceType),
 			entitlement.WithDisplayName(fmt.Sprintf("Course %s %s", resource.DisplayName, inProgressEntitlement)),
 			entitlement.WithDescription(fmt.Sprintf("In progress course %s in Percipio", resource.DisplayName)),
+		),
+		entitlement.NewAssignmentEntitlement(
+			resource,
+			noStatusReportedEntitlement,
+			entitlement.WithGrantableTo(userResourceType),
+			entitlement.WithDisplayName(fmt.Sprintf("Course %s %s", resource.DisplayName, noStatusReportedEntitlement)),
+			entitlement.WithDescription(fmt.Sprintf("No status reported for course %s in Percipio", resource.DisplayName)),
+		),
+		entitlement.NewAssignmentEntitlement(
+			resource,
+			statusUndefinedEntitlement,
+			entitlement.WithGrantableTo(userResourceType),
+			entitlement.WithDisplayName(fmt.Sprintf("Course %s %s", resource.DisplayName, statusUndefinedEntitlement)),
+			entitlement.WithDescription(fmt.Sprintf("Status undefined for course %s in Percipio", resource.DisplayName)),
 		),
 	}, "", nil, nil
 }

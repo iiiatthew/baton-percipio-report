@@ -2,7 +2,7 @@ package connector
 
 import (
 	"context"
-	"strings"
+	"fmt"
 
 	"github.com/iiiatthew/baton-percipio-report/pkg/client"
 
@@ -12,10 +12,6 @@ import (
 	resourceSdk "github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
-)
-
-const (
-	userFullNameDefault = "<no name>"
 )
 
 type userBuilder struct {
@@ -31,30 +27,14 @@ func (o *userBuilder) ResourceType(ctx context.Context) *v2.ResourceType {
 }
 
 func getDisplayName(user client.User) string {
-	var parts []string
-	if user.FirstName != "" {
-		parts = append(parts, user.FirstName)
-	}
-	if user.LastName != "" {
-		parts = append(parts, user.LastName)
-	}
-	if len(parts) > 0 {
-		return strings.Join(parts, " ")
-	}
-	if user.Email != "" {
-		return user.Email
-	}
-	if user.LoginID != "" {
-		return user.LoginID
-	}
-	return userFullNameDefault
+	return fmt.Sprintf("%s %s", user.FirstName, user.LastName)
 }
 
 // Create a new connector resource for a Percipio user.
 func userResource(user client.User, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
 	profile := map[string]interface{}{
 		"id":           user.Id,
-		"login_id":     user.LoginID,
+		"login_id":     user.Id,
 		"display_name": getDisplayName(user),
 		"email":        user.Email,
 		"first_name":   user.FirstName,
@@ -63,7 +43,7 @@ func userResource(user client.User, parentResourceID *v2.ResourceId) (*v2.Resour
 
 	userTraitOptions := []resourceSdk.UserTraitOption{
 		resourceSdk.WithEmail(user.Email, true),
-		resourceSdk.WithStatus(v2.UserTrait_Status_STATUS_ENABLED), // All users from report are active
+		resourceSdk.WithStatus(v2.UserTrait_Status_STATUS_ENABLED),
 		resourceSdk.WithUserProfile(profile),
 	}
 
@@ -99,8 +79,8 @@ func (o *userBuilder) List(
 	outputResources := make([]*v2.Resource, 0)
 	var outputAnnotations annotations.Annotations
 
-	// Ensure report is initialized for this sync
-	if err := o.connector.ensureReportInitialized(ctx); err != nil {
+	// Wait for report to be generated during validation
+	if err := o.connector.waitForReport(ctx); err != nil {
 		return nil, "", outputAnnotations, err
 	}
 
@@ -118,8 +98,11 @@ func (o *userBuilder) List(
 	userMap := make(map[string]userWithDate)
 
 	for _, entry := range *o.connector.report {
-		// Determine the most recent date for this entry
-		// Priority: completedDate > lastAccess > firstAccess
+		// Skip entries with empty userId
+		if entry.UserId == "" {
+			continue
+		}
+
 		var mostRecentDate string
 		switch {
 		case entry.CompletedDate != "":
@@ -130,19 +113,16 @@ func (o *userBuilder) List(
 			mostRecentDate = entry.FirstAccess
 		}
 
-		if existing, exists := userMap[entry.UserUUID]; exists {
-			// Compare dates to see if this entry is more recent
+		if existing, exists := userMap[entry.UserId]; exists {
 			if mostRecentDate > existing.mostRecentDate {
-				// This entry is more recent, update the user data
 				logger.Debug("Updating user with more recent data",
-					zap.String("userId", entry.UserUUID),
+					zap.String("userId", entry.UserId),
 					zap.String("oldDate", existing.mostRecentDate),
 					zap.String("newDate", mostRecentDate))
 
-				userMap[entry.UserUUID] = userWithDate{
+				userMap[entry.UserId] = userWithDate{
 					user: client.User{
-						Id:        entry.UserUUID,
-						LoginID:   entry.UserId,
+						Id:        entry.UserId,
 						Email:     entry.EmailAddress,
 						FirstName: entry.FirstName,
 						LastName:  entry.LastName,
@@ -151,23 +131,9 @@ func (o *userBuilder) List(
 				}
 			}
 		} else {
-			// First time seeing this user
-			if entry.EmailAddress == "" {
-				logger.Warn("User missing email address",
-					zap.String("userId", entry.UserUUID),
-					zap.String("firstName", entry.FirstName),
-					zap.String("lastName", entry.LastName))
-			}
-			if entry.FirstName == "" && entry.LastName == "" {
-				logger.Warn("User missing name",
-					zap.String("userId", entry.UserUUID),
-					zap.String("email", entry.EmailAddress))
-			}
-
-			userMap[entry.UserUUID] = userWithDate{
+			userMap[entry.UserId] = userWithDate{
 				user: client.User{
-					Id:        entry.UserUUID,
-					LoginID:   entry.UserId,
+					Id:        entry.UserId,
 					Email:     entry.EmailAddress,
 					FirstName: entry.FirstName,
 					LastName:  entry.LastName,

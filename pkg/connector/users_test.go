@@ -18,127 +18,160 @@ func TestUsersList(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("should get users from report data", func(t *testing.T) {
-		// Create a mock connector with report data
 		connector := &Connector{
-			reportInitialized: true,
+			reportState: ReportCompleted,
 			report: &client.Report{
 				{
-					UserUUID:      "a77840ca-ea10-4da8-b64f-bddf714c47a0",
-					FirstName:     "John",
-					LastName:      "Doe",
-					EmailAddress:  "john@example.com",
-					ContentUUID:   "1a3a3f54-b601-4d45-a234-038c980ee20f",
-					Status:        "Completed",
-					CompletedDate: "2023-01-15",
+					UserId:       "michael.bolton@initech.com",
+					FirstName:    "Michael",
+					LastName:     "Bolton",
+					EmailAddress: "michael.bolton@initech.com",
+					ContentId:    "bs_adg02_a23_enus",
+					ContentTitle: "Case Studies: Successful Data Privacy Implementations",
+					ContentType:  "Course",
+					Status:       "Completed",
 				},
 				{
-					UserUUID:     "a77840ca-ea10-4da8-b64f-bddf714c47a1",
-					FirstName:    "Jane",
-					LastName:     "Smith",
-					EmailAddress: "jane@example.com",
-					ContentUUID:  "1a3a3f54-b601-4d45-a234-038c980ee20f",
+					UserId:       "milton.waddams@initech.com",
+					FirstName:    "Milton",
+					LastName:     "Waddams",
+					EmailAddress: "milton.waddams@initech.com",
+					ContentId:    "bs_adg02_a23_enus",
+					ContentTitle: "Case Studies: Successful Data Privacy Implementations",
+					ContentType:  "Course",
 					Status:       "Started",
-					FirstAccess:  "2023-01-10",
+				},
+				{
+					UserId:       "michael.bolton@initech.com",
+					FirstName:    "Michael",
+					LastName:     "Bolton",
+					EmailAddress: "michael.bolton@initech.com",
+					ContentId:    "another_course_id",
+					ContentTitle: "Advanced Go Patterns",
+					ContentType:  "Assessment",
+					Status:       "Active",
+				},
+				{
+					UserId:       "peter.gibbons@initech.com",
+					FirstName:    "Peter",
+					LastName:     "Gibbons",
+					EmailAddress: "peter.gibbons@initech.com",
+					ContentId:    "bs_adg02_a23_enus",
+					ContentTitle: "Case Studies: Successful Data Privacy Implementations",
+					ContentType:  "Course",
+					Status:       "",
+				},
+				{
+					UserId:       "bill.lumbergh@initech.com",
+					FirstName:    "Bill",
+					LastName:     "Lumbergh",
+					EmailAddress: "bill.lumbergh@initech.com",
+					ContentId:    "another_course_id",
+					ContentTitle: "Advanced Go Patterns",
+					ContentType:  "Assessment",
+					Status:       "UnknownStatus",
 				},
 			},
 		}
 
-		c := newUserBuilder(nil, nil, connector)
+		u := newUserBuilder(nil, nil, connector)
 
-		resources, nextToken, annotations, err := c.List(ctx, nil, &pagination.Token{})
+		resources, nextToken, annotations, err := u.List(ctx, nil, &pagination.Token{})
 
 		require.NoError(t, err)
-		assert.Empty(t, nextToken) // No pagination for report-based data
+		assert.Empty(t, nextToken)
 		test.AssertNoRatelimitAnnotations(t, annotations)
-		require.Len(t, resources, 2) // 2 unique users
+		require.Len(t, resources, 4)
 
-		// Check user1
-		user1 := findResourceById(resources, "a77840ca-ea10-4da8-b64f-bddf714c47a0")
-		require.NotNil(t, user1)
-		assert.Equal(t, "John Doe", user1.DisplayName)
+		userByID := make(map[string]*v2.Resource)
+		for _, user := range resources {
+			userByID[user.Id.Resource] = user
+		}
 
-		// Check user2
-		user2 := findResourceById(resources, "a77840ca-ea10-4da8-b64f-bddf714c47a1")
-		require.NotNil(t, user2)
-		assert.Equal(t, "Jane Smith", user2.DisplayName)
+		// Verify Michael
+		michael := userByID["michael.bolton@initech.com"]
+		require.NotNil(t, michael)
+		assert.Equal(t, "Michael Bolton", michael.DisplayName)
+
+		// Verify Milton
+		milton := userByID["milton.waddams@initech.com"]
+		require.NotNil(t, milton)
+		assert.Equal(t, "Milton Waddams", milton.DisplayName)
+
+		// Verify Peter
+		peter := userByID["peter.gibbons@initech.com"]
+		require.NotNil(t, peter)
+		assert.Equal(t, "Peter Gibbons", peter.DisplayName)
+
+		// Verify Bill
+		bill := userByID["bill.lumbergh@initech.com"]
+		require.NotNil(t, bill)
+		assert.Equal(t, "Bill Lumbergh", bill.DisplayName)
 	})
 
-	t.Run("should handle duplicate users with date priority", func(t *testing.T) {
+	t.Run("should handle missing userId", func(t *testing.T) {
 		connector := &Connector{
-			reportInitialized: true,
+			reportState: ReportCompleted,
 			report: &client.Report{
 				{
-					UserUUID:     "a77840ca-ea10-4da8-b64f-bddf714c47a0",
-					FirstName:    "John",
-					LastName:     "Doe",
-					EmailAddress: "john@example.com",
-					ContentUUID:  "1a3a3f54-b601-4d45-a234-038c980ee20f",
-					Status:       "Started",
-					FirstAccess:  "2023-01-10",
+					UserId:       "",
+					FirstName:    "Anonymous",
+					LastName:     "User",
+					EmailAddress: "anonymous@initech.com",
+					ContentId:    "bs_adg02_a23_enus",
+					ContentTitle: "Case Studies: Successful Data Privacy Implementations",
+					ContentType:  "Course",
+					Status:       "Completed",
 				},
 				{
-					UserUUID:      "a77840ca-ea10-4da8-b64f-bddf714c47a0",
-					FirstName:     "Johnny", // Updated name
-					LastName:      "Doe",
-					EmailAddress:  "johnny@example.com", // Updated email
-					ContentUUID:   "1a3a3f54-b601-4d45-a234-038c980ee20f",
-					Status:        "Completed",
-					CompletedDate: "2023-01-15", // More recent
+					UserId:       "michael.bolton@initech.com",
+					FirstName:    "Michael",
+					LastName:     "Bolton",
+					EmailAddress: "michael.bolton@initech.com",
+					ContentId:    "bs_adg02_a23_enus",
+					ContentTitle: "Case Studies: Successful Data Privacy Implementations",
+					ContentType:  "Course",
+					Status:       "Completed",
 				},
 			},
 		}
 
-		c := newUserBuilder(nil, nil, connector)
+		u := newUserBuilder(nil, nil, connector)
 
-		resources, _, _, err := c.List(ctx, nil, &pagination.Token{})
-
-		require.NoError(t, err)
-		require.Len(t, resources, 1) // Should deduplicate to 1 user
-
-		user := resources[0]
-		assert.Equal(t, "a77840ca-ea10-4da8-b64f-bddf714c47a0", user.Id.Resource)
-		assert.Equal(t, "Johnny Doe", user.DisplayName) // Should use more recent data
-	})
-
-	t.Run("should handle missing email gracefully", func(t *testing.T) {
-		connector := &Connector{
-			reportInitialized: true,
-			report: &client.Report{
-				{
-					UserUUID:  "a77840ca-ea10-4da8-b64f-bddf714c47a0",
-					FirstName: "John",
-					LastName:  "Doe",
-					// EmailAddress missing
-					ContentUUID: "1a3a3f54-b601-4d45-a234-038c980ee20f",
-					Status:      "Completed",
-				},
-			},
-		}
-
-		c := newUserBuilder(nil, nil, connector)
-
-		resources, _, _, err := c.List(ctx, nil, &pagination.Token{})
+		resources, _, _, err := u.List(ctx, nil, &pagination.Token{})
 
 		require.NoError(t, err)
 		require.Len(t, resources, 1)
-		// Should still create user even without email
+		assert.Equal(t, "michael.bolton@initech.com", resources[0].Id.Resource)
 	})
 
-	t.Run("should handle empty report", func(t *testing.T) {
+	t.Run("should handle missing names", func(t *testing.T) {
 		connector := &Connector{
-			reportInitialized: true,
-			report:            &client.Report{},
+			reportState: ReportCompleted,
+			report: &client.Report{
+				{
+					UserId:       "michael.bolton@initech.com",
+					FirstName:    "",
+					LastName:     "",
+					EmailAddress: "michael.bolton@initech.com",
+					ContentId:    "bs_adg02_a23_enus",
+					ContentTitle: "Case Studies: Successful Data Privacy Implementations",
+					ContentType:  "Course",
+					Status:       "Completed",
+				},
+			},
 		}
 
-		c := newUserBuilder(nil, nil, connector)
+		u := newUserBuilder(nil, nil, connector)
 
-		resources, _, _, err := c.List(ctx, nil, &pagination.Token{})
+		resources, _, _, err := u.List(ctx, nil, &pagination.Token{})
 
 		require.NoError(t, err)
-		assert.Len(t, resources, 0)
+		require.Len(t, resources, 1)
+		assert.Equal(t, " ", resources[0].DisplayName)
 	})
 
-	t.Run("should initialize report if not done", func(t *testing.T) {
+	t.Run("should wait for report that was generated during validation", func(t *testing.T) {
 		server := test.FixturesServer()
 		defer server.Close()
 
@@ -146,18 +179,29 @@ func TestUsersList(t *testing.T) {
 		require.NoError(t, err)
 
 		connector := &Connector{
-			client:            percipioClient,
-			reportLookback:    24 * time.Hour,
-			reportInitialized: false,
+			client:         percipioClient,
+			reportLookback: 24 * time.Hour,
+			reportState:    ReportCompleted,
+			report: &client.Report{
+				{
+					UserId:       "test@example.com",
+					FirstName:    "Test",
+					LastName:     "User",
+					EmailAddress: "test@example.com",
+					ContentId:    "test-course",
+					ContentTitle: "Test Course",
+					ContentType:  "Course",
+					Status:       "Completed",
+				},
+			},
 		}
 
-		c := newUserBuilder(percipioClient, nil, connector)
+		u := newUserBuilder(percipioClient, nil, connector)
 
-		resources, _, _, err := c.List(ctx, nil, &pagination.Token{})
+		resources, _, _, err := u.List(ctx, nil, &pagination.Token{})
 
 		require.NoError(t, err)
-		assert.True(t, connector.reportInitialized)
-		// Should have users from test fixtures
+		assert.Equal(t, ReportCompleted, connector.reportState)
 		assert.Greater(t, len(resources), 0)
 	})
 }
@@ -188,44 +232,46 @@ func TestUserGrants(t *testing.T) {
 
 func TestGetDisplayName(t *testing.T) {
 	testCases := []struct {
+		name     string
 		user     client.User
 		expected string
-		desc     string
 	}{
 		{
-			client.User{FirstName: "John", LastName: "Doe", Email: ""},
-			"John Doe",
-			"full name",
+			name: "full name",
+			user: client.User{
+				FirstName: "Michael",
+				LastName:  "Bolton",
+			},
+			expected: "Michael Bolton",
 		},
 		{
-			client.User{FirstName: "John", LastName: "", Email: ""},
-			"John",
-			"first name only",
+			name: "first name only",
+			user: client.User{
+				FirstName: "Michael",
+				LastName:  "",
+			},
+			expected: "Michael ",
 		},
 		{
-			client.User{FirstName: "", LastName: "Doe", Email: ""},
-			"Doe",
-			"last name only",
+			name: "last name only",
+			user: client.User{
+				FirstName: "",
+				LastName:  "Bolton",
+			},
+			expected: " Bolton",
 		},
 		{
-			client.User{Email: "john@example.com", FirstName: "", LastName: "", LoginID: ""},
-			"john@example.com",
-			"email fallback",
-		},
-		{
-			client.User{LoginID: "user123", FirstName: "", LastName: "", Email: ""},
-			"user123",
-			"id fallback",
-		},
-		{
-			client.User{FirstName: "", LastName: "", Email: "", LoginID: ""},
-			"<no name>",
-			"default fallback",
+			name: "empty names",
+			user: client.User{
+				FirstName: "",
+				LastName:  "",
+			},
+			expected: " ",
 		},
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.desc, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			result := getDisplayName(tc.user)
 			assert.Equal(t, tc.expected, result)
 		})
@@ -240,4 +286,58 @@ func findResourceById(resources []*v2.Resource, id string) *v2.Resource {
 		}
 	}
 	return nil
+}
+
+func TestUsersGrants(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should return empty grants for user", func(t *testing.T) {
+		u := newUserBuilder(nil, nil, nil)
+		user := &v2.Resource{
+			DisplayName: "Michael Bolton",
+			Id: &v2.ResourceId{
+				ResourceType: "user",
+				Resource:     "michael.bolton@initech.com",
+			},
+		}
+
+		grants, nextToken, annotations, err := u.Grants(ctx, user, &pagination.Token{})
+
+		require.NoError(t, err)
+		assert.Empty(t, nextToken)
+		assert.Nil(t, annotations)
+		assert.Len(t, grants, 0)
+	})
+}
+
+func TestUserResource(t *testing.T) {
+	t.Run("should create user resource with display name", func(t *testing.T) {
+		user := client.User{
+			Id:        "michael.bolton@initech.com",
+			Email:     "michael.bolton@initech.com",
+			FirstName: "Michael",
+			LastName:  "Bolton",
+		}
+
+		resource, err := userResource(user, nil)
+
+		require.NoError(t, err)
+		assert.Equal(t, "Michael Bolton", resource.DisplayName)
+		assert.Equal(t, "michael.bolton@initech.com", resource.Id.Resource)
+		assert.Equal(t, "user", resource.Id.ResourceType)
+	})
+
+	t.Run("should handle empty names", func(t *testing.T) {
+		user := client.User{
+			Id:        "michael.bolton@initech.com",
+			Email:     "michael.bolton@initech.com",
+			FirstName: "",
+			LastName:  "",
+		}
+
+		resource, err := userResource(user, nil)
+
+		require.NoError(t, err)
+		assert.Equal(t, " ", resource.DisplayName)
+	})
 }

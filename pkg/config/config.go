@@ -5,8 +5,11 @@ import (
 )
 
 const (
-	RetryAttemptsMaximum = 300
+	RetryAttemptsMaximum = 180
 	RetryAfterSeconds    = 60
+	// // For Testing Only
+	// RetryAttemptsMaximum = 1800
+	// RetryAfterSeconds    = 1
 )
 
 var (

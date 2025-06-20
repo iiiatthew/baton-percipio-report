@@ -32,18 +32,17 @@ func (r StatusesStore) Load(ctx context.Context, report *Report) error {
 	statusCounts := make(map[string]int)
 
 	for _, row := range *report {
-		// Use ContentUUID as the key
-		found, ok := r[row.ContentUUID]
+		found, ok := r[row.ContentId]
 		if !ok {
 			found = make(map[string]string)
 			uniqueCourses++
 		}
 
 		status := toStatus(row.Status)
-		found[row.UserUUID] = status
-		r[row.ContentUUID] = found
+		found[row.UserId] = status
+		r[row.ContentId] = found
 
-		uniqueUsers[row.UserUUID] = true
+		uniqueUsers[row.UserId] = true
 		statusCounts[status]++
 		totalEntries++
 	}
@@ -69,14 +68,15 @@ func (r StatusesStore) Get(courseUUID string) map[string]string {
 	return found
 }
 
-// toStatus convert Percipio status to C1 status.
 func toStatus(status string) string {
 	switch status {
+	case "":
+		return "no_status_reported"
 	case "Completed", "Achieved", "Listened", "Read", "Watched":
 		return "completed"
 	case "Started", "Active":
 		return "in_progress"
 	default:
-		return "Status Undefined" // Default to in_progress for any other status
+		return "status_undefined"
 	}
 }

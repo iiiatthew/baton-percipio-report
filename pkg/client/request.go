@@ -47,19 +47,67 @@ func (c *Client) get(
 	path string,
 	queryParameters map[string]any,
 	target any,
+	extraOptions ...uhttp.RequestOption,
 ) (
 	*http.Response,
 	*v2.RateLimitDescription,
 	error,
 ) {
-	return c.doRequest(
-		ctx,
-		http.MethodGet,
-		path,
-		queryParameters,
-		nil,
-		&target,
-	)
+	logger := ctxzap.Extract(ctx)
+	startTime := time.Now()
+
+	options := []uhttp.RequestOption{
+		uhttp.WithAcceptJSONHeader(),
+		WithBearerToken(c.bearerToken),
+	}
+	// Add any extra options (like no-cache header)
+	options = append(options, extraOptions...)
+
+	url := c.getUrl(path, queryParameters)
+
+	logger.Debug("Making API request",
+		zap.String("method", "GET"),
+		zap.String("endpoint", url.String()),
+		zap.String("path", path),
+		zap.Any("query_params", queryParameters))
+
+	request, err := c.wrapper.NewRequest(ctx, http.MethodGet, url, options...)
+	if err != nil {
+		logger.Error("Failed to create request",
+			zap.Error(err),
+			zap.String("method", "GET"),
+			zap.String("endpoint", url.String()))
+		return nil, nil, err
+	}
+
+	var ratelimitData v2.RateLimitDescription
+	doOptions := []uhttp.DoOption{uhttp.WithRatelimitData(&ratelimitData)}
+
+	// Only add JSON response option if target is not nil
+	if target != nil {
+		doOptions = append(doOptions, uhttp.WithJSONResponse(target))
+	}
+
+	response, err := c.wrapper.Do(request, doOptions...)
+
+	if err != nil {
+		logger.Error("API request failed",
+			zap.Error(err),
+			zap.String("method", "GET"),
+			zap.String("endpoint", url.String()),
+			zap.Duration("duration", time.Since(startTime)))
+		return response, &ratelimitData, fmt.Errorf("error making GET request to %s: %w", url, err)
+	}
+
+	logger.Debug("API request completed",
+		zap.String("method", "GET"),
+		zap.String("endpoint", url.String()),
+		zap.Int("status_code", response.StatusCode),
+		zap.Duration("duration", time.Since(startTime)),
+		zap.Int("rate_limit_remaining", int(ratelimitData.Remaining)),
+		zap.Int64("rate_limit_reset_at", ratelimitData.ResetAt.Seconds))
+
+	return response, &ratelimitData, nil
 }
 
 func (c *Client) post(
@@ -96,7 +144,7 @@ func (c *Client) doRequest(
 ) {
 	logger := ctxzap.Extract(ctx)
 	startTime := time.Now()
-	
+
 	options := []uhttp.RequestOption{
 		uhttp.WithAcceptJSONHeader(),
 		WithBearerToken(c.bearerToken),
@@ -106,7 +154,7 @@ func (c *Client) doRequest(
 	}
 
 	url := c.getUrl(path, queryParameters)
-	
+
 	logger.Debug("Making API request",
 		zap.String("method", method),
 		zap.String("endpoint", url.String()),
@@ -129,7 +177,7 @@ func (c *Client) doRequest(
 		uhttp.WithRatelimitData(&ratelimitData),
 		uhttp.WithJSONResponse(target),
 	)
-	
+
 	if err != nil {
 		logger.Error("API request failed",
 			zap.Error(err),

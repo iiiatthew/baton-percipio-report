@@ -2,6 +2,7 @@ package connector
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -29,7 +30,7 @@ func TestConnectorNew(t *testing.T) {
 		assert.NotNil(t, connector)
 		assert.NotNil(t, connector.client)
 		assert.Equal(t, 24*time.Hour, connector.reportLookback)
-		assert.False(t, connector.reportInitialized)
+		assert.Equal(t, ReportNotStarted, connector.reportState)
 		assert.Nil(t, connector.report)
 	})
 
@@ -118,10 +119,10 @@ func TestConnectorAsset(t *testing.T) {
 	assert.Nil(t, reader)
 }
 
-func TestConnectorEnsureReportInitialized(t *testing.T) {
+func TestConnectorGenerateReport(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("should initialize report on first call", func(t *testing.T) {
+	t.Run("should generate report on first call", func(t *testing.T) {
 		server := test.FixturesServer()
 		defer server.Close()
 
@@ -142,17 +143,17 @@ func TestConnectorEnsureReportInitialized(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		assert.False(t, connector.reportInitialized)
+		assert.Equal(t, ReportNotStarted, connector.reportState)
 		assert.Nil(t, connector.report)
 
-		err = connector.ensureReportInitialized(ctx)
+		err = connector.generateReport(ctx)
 		require.NoError(t, err)
 
-		assert.True(t, connector.reportInitialized)
+		assert.Equal(t, ReportCompleted, connector.reportState)
 		assert.NotNil(t, connector.report)
 	})
 
-	t.Run("should not reinitialize report on subsequent calls", func(t *testing.T) {
+	t.Run("should not regenerate report on subsequent calls", func(t *testing.T) {
 		server := test.FixturesServer()
 		defer server.Close()
 
@@ -174,14 +175,15 @@ func TestConnectorEnsureReportInitialized(t *testing.T) {
 		require.NoError(t, err)
 
 		// First call
-		err = connector.ensureReportInitialized(ctx)
+		err = connector.generateReport(ctx)
 		require.NoError(t, err)
 		firstReport := connector.report
 
-		// Second call should not change the report
-		err = connector.ensureReportInitialized(ctx)
+		// Second call should not change the report (already completed)
+		err = connector.generateReport(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, firstReport, connector.report)
+		assert.Equal(t, ReportCompleted, connector.reportState)
 	})
 
 	t.Run("should handle custom lookback period", func(t *testing.T) {
@@ -206,10 +208,10 @@ func TestConnectorEnsureReportInitialized(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		err = connector.ensureReportInitialized(ctx)
+		err = connector.generateReport(ctx)
 		require.NoError(t, err)
 
-		assert.True(t, connector.reportInitialized)
+		assert.Equal(t, ReportCompleted, connector.reportState)
 	})
 }
 
@@ -240,6 +242,10 @@ func TestConnectorValidate(t *testing.T) {
 		annotations, err := connector.Validate(ctx)
 		assert.NoError(t, err)
 		assert.Nil(t, annotations)
+
+		// Validate should have generated the report
+		assert.Equal(t, ReportCompleted, connector.reportState)
+		assert.NotNil(t, connector.report)
 	})
 
 	t.Run("should fail validation with bad credentials", func(t *testing.T) {
@@ -255,5 +261,77 @@ func TestConnectorValidate(t *testing.T) {
 		annotations, err := connector.Validate(ctx)
 		assert.Error(t, err)
 		assert.Nil(t, annotations)
+		assert.Equal(t, ReportFailed, connector.reportState)
 	})
+}
+
+func TestWaitForReport(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should succeed when report is completed", func(t *testing.T) {
+		connector := &Connector{
+			reportState: ReportCompleted,
+		}
+
+		err := connector.waitForReport(ctx)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should fail when report generation failed", func(t *testing.T) {
+		reportErr := fmt.Errorf("test error")
+		connector := &Connector{
+			reportState: ReportFailed,
+			reportError: reportErr,
+		}
+
+		err := connector.waitForReport(ctx)
+		assert.Error(t, err)
+		assert.Equal(t, reportErr, err)
+	})
+
+	t.Run("should fail when report not ready", func(t *testing.T) {
+		connector := &Connector{
+			reportState: ReportNotStarted,
+		}
+
+		err := connector.waitForReport(ctx)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "report not ready")
+	})
+}
+
+func TestValidateGeneratesReportForSyncers(t *testing.T) {
+	ctx := context.Background()
+	server := test.FixturesServer()
+	defer server.Close()
+
+	connector, err := New(
+		ctx,
+		"test-org",
+		"test-token",
+		24*time.Hour,
+	)
+	require.NoError(t, err)
+
+	// Mock the client
+	connector.client, err = client.New(
+		ctx,
+		server.URL,
+		"test-org",
+		"test-token",
+	)
+	require.NoError(t, err)
+
+	// Validate should generate the report
+	annotations, err := connector.Validate(ctx)
+	require.NoError(t, err)
+	assert.Nil(t, annotations)
+
+	// Report should be completed and available for syncers
+	assert.Equal(t, ReportCompleted, connector.reportState)
+	assert.NotNil(t, connector.report)
+
+	// Syncers should be able to wait for and use the report
+	err = connector.waitForReport(ctx)
+	assert.NoError(t, err)
 }

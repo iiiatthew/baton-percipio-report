@@ -166,7 +166,7 @@ func TestGetLoadedReport(t *testing.T) {
 
 	// Set a report
 	testReport := &Report{
-		{UserUUID: "a77840ca-ea10-4da8-b64f-bddf714c47a0", ContentUUID: "1a3a3f54-b601-4d45-a234-038c980ee20f"},
+		{UserId: "michael.bolton@initech.com", ContentId: "bs_adg02_a23_enus"},
 	}
 	client.loadedReport = testReport
 

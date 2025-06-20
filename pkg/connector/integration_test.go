@@ -29,7 +29,7 @@ func TestIntegrationConnectorFlow(t *testing.T) {
 			24*time.Hour,
 		)
 		require.NoError(t, err)
-		assert.False(t, connector.reportInitialized)
+		assert.Equal(t, ReportNotStarted, connector.reportState)
 
 		// Replace client with test server
 		connector.client, err = client.New(ctx, server.URL, "test-org", "test-token")
@@ -40,10 +40,11 @@ func TestIntegrationConnectorFlow(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "Percipio Connector", metadata.DisplayName)
 
-		// Test validation
+		// Test validation - this now generates the report
 		annotations, err := connector.Validate(ctx)
 		assert.NoError(t, err)
 		assert.Nil(t, annotations)
+		assert.Equal(t, ReportCompleted, connector.reportState) // Report generated during validation
 
 		// Get resource syncers
 		syncers := connector.ResourceSyncers(ctx)
@@ -62,13 +63,13 @@ func TestIntegrationConnectorFlow(t *testing.T) {
 		require.NotNil(t, userSyncer)
 		require.NotNil(t, courseSyncer)
 
-		// Test users list - this should trigger report initialization
+		// Test users list - this should use the already generated report
 		users, _, _, err := userSyncer.List(ctx, nil, nil)
 		require.NoError(t, err)
-		assert.True(t, connector.reportInitialized) // Should be initialized now
+		assert.Equal(t, ReportCompleted, connector.reportState) // Still completed
 		assert.Greater(t, len(users), 0)
 
-		// Test courses list - should use already initialized report
+		// Test courses list - should use already generated report
 		courses, _, _, err := courseSyncer.List(ctx, nil, nil)
 		require.NoError(t, err)
 		assert.Greater(t, len(courses), 0)
@@ -77,7 +78,7 @@ func TestIntegrationConnectorFlow(t *testing.T) {
 		if len(courses) > 0 {
 			entitlements, _, _, err := courseSyncer.Entitlements(ctx, courses[0], nil)
 			require.NoError(t, err)
-			assert.Len(t, entitlements, 3) // assigned, completed, in_progress
+			assert.Len(t, entitlements, 5) // assigned, completed, in_progress, no_status_reported, status_undefined
 		}
 
 		// Test course grants
@@ -113,15 +114,20 @@ func TestIntegrationConnectorFlow(t *testing.T) {
 		connector.client, err = client.New(ctx, server.URL, "test-org", "test-token")
 		require.NoError(t, err)
 
+		// Generate report via validation first
+		_, err = connector.Validate(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, ReportCompleted, connector.reportState)
+		report1 := connector.report
+
 		syncers := connector.ResourceSyncers(ctx)
 		userSyncer := syncers[0].(*userBuilder)
 		courseSyncer := syncers[1].(*courseBuilder)
 
-		// First call should initialize report
+		// List calls should use already generated report
 		users1, _, _, err := userSyncer.List(ctx, nil, nil)
 		require.NoError(t, err)
-		assert.True(t, connector.reportInitialized)
-		report1 := connector.report
+		assert.Equal(t, report1, connector.report) // Same report instance
 
 		// Second call should reuse report
 		users2, _, _, err := userSyncer.List(ctx, nil, nil)
@@ -152,10 +158,11 @@ func TestIntegrationConnectorFlow(t *testing.T) {
 		annotations, err := connector.Validate(ctx)
 		assert.Error(t, err)
 		assert.Nil(t, annotations)
+		assert.Equal(t, ReportFailed, connector.reportState)
 	})
 }
 
-func TestReportInitializationEdgeCases(t *testing.T) {
+func TestReportGenerationEdgeCases(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("default lookback period should work", func(t *testing.T) {
@@ -175,9 +182,9 @@ func TestReportInitializationEdgeCases(t *testing.T) {
 		connector.client, err = client.New(ctx, server.URL, "test-org", "test-token")
 		require.NoError(t, err)
 
-		err = connector.ensureReportInitialized(ctx)
+		err = connector.generateReport(ctx)
 		require.NoError(t, err)
-		assert.True(t, connector.reportInitialized)
+		assert.Equal(t, ReportCompleted, connector.reportState)
 		assert.Equal(t, defaultLookback, connector.reportLookback)
 	})
 
@@ -198,8 +205,8 @@ func TestReportInitializationEdgeCases(t *testing.T) {
 		connector.client, err = client.New(ctx, server.URL, "test-org", "test-token")
 		require.NoError(t, err)
 
-		err = connector.ensureReportInitialized(ctx)
+		err = connector.generateReport(ctx)
 		require.NoError(t, err)
-		assert.True(t, connector.reportInitialized)
+		assert.Equal(t, ReportCompleted, connector.reportState)
 	})
 }

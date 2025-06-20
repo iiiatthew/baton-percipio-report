@@ -4,6 +4,11 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/field"
 )
 
+const (
+	RetryAttemptsMaximum = 300
+	RetryAfterSeconds    = 60
+)
+
 var (
 	ApiTokenField = field.StringField(
 		"api-token",

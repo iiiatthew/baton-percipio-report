@@ -33,7 +33,7 @@ func TestClientNew(t *testing.T) {
 	t.Run("should fail with invalid URL", func(t *testing.T) {
 		_, err := New(
 			ctx,
-			"://invalid-url",  // This should definitely be invalid
+			"://invalid-url", // This should definitely be invalid
 			"test-org",
 			"test-token",
 		)
@@ -166,11 +166,10 @@ func TestGetLoadedReport(t *testing.T) {
 
 	// Set a report
 	testReport := &Report{
-		{UserId: "user1", ContentId: "course1"},
+		{UserUUID: "a77840ca-ea10-4da8-b64f-bddf714c47a0", ContentUUID: "1a3a3f54-b601-4d45-a234-038c980ee20f"},
 	}
 	client.loadedReport = testReport
 
 	// Should return the report
 	assert.Equal(t, testReport, client.GetLoadedReport())
 }
-

@@ -2,19 +2,20 @@ package client
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestUserModel(t *testing.T) {
 	user := User{
-		Id:        "user123",
+		Id:        "a77840ca-ea10-4da8-b64f-bddf714c47a0",
 		Email:     "test@example.com",
 		FirstName: "John",
 		LastName:  "Doe",
 	}
 
-	assert.Equal(t, "user123", user.Id)
+	assert.Equal(t, "a77840ca-ea10-4da8-b64f-bddf714c47a0", user.Id)
 	assert.Equal(t, "test@example.com", user.Email)
 	assert.Equal(t, "John", user.FirstName)
 	assert.Equal(t, "Doe", user.LastName)
@@ -22,23 +23,22 @@ func TestUserModel(t *testing.T) {
 
 func TestCourseModel(t *testing.T) {
 	course := Course{
-		Id:   "course123",
-		Name: "Introduction to Go",
+		Id:          "1a3a3f54-b601-4d45-a234-038c980ee20f",
+		CourseTitle: "Introduction to Go",
 	}
 
-	assert.Equal(t, "course123", course.Id)
-	assert.Equal(t, "Introduction to Go", course.Name)
+	assert.Equal(t, "1a3a3f54-b601-4d45-a234-038c980ee20f", course.Id)
+	assert.Equal(t, "Introduction to Go", course.CourseTitle)
 }
 
 func TestReportEntry(t *testing.T) {
 	entry := ReportEntry{
-		UserId:        "user123",
+		UserUUID:      "a77840ca-ea10-4da8-b64f-bddf714c47a0",
 		FirstName:     "John",
 		LastName:      "Doe",
 		EmailAddress:  "john@example.com",
-		ContentId:     "course123",
+		ContentUUID:   "1a3a3f54-b601-4d45-a234-038c980ee20f",
 		ContentTitle:  "Test Course",
-		ContentUUID:   "uuid-123",
 		ContentType:   "Course",
 		Status:        "Completed",
 		CompletedDate: "2023-01-15",
@@ -46,13 +46,12 @@ func TestReportEntry(t *testing.T) {
 		LastAccess:    "2023-01-14",
 	}
 
-	assert.Equal(t, "user123", entry.UserId)
+	assert.Equal(t, "a77840ca-ea10-4da8-b64f-bddf714c47a0", entry.UserUUID)
 	assert.Equal(t, "John", entry.FirstName)
 	assert.Equal(t, "Doe", entry.LastName)
 	assert.Equal(t, "john@example.com", entry.EmailAddress)
-	assert.Equal(t, "course123", entry.ContentId)
-	assert.Equal(t, "Test Course", entry.ContentTitle)
-	assert.Equal(t, "uuid-123", entry.ContentUUID)
+	assert.Equal(t, "Introduction to Go", entry.ContentTitle)
+	assert.Equal(t, "1a3a3f54-b601-4d45-a234-038c980ee20f", entry.ContentUUID)
 	assert.Equal(t, "Course", entry.ContentType)
 	assert.Equal(t, "Completed", entry.Status)
 	assert.Equal(t, "2023-01-15", entry.CompletedDate)
@@ -62,42 +61,49 @@ func TestReportEntry(t *testing.T) {
 
 func TestReportStatus(t *testing.T) {
 	status := ReportStatus{
-		Id:     "report123",
+		Id:     "bed2ffcb-9822-4dd1-bc8b-3eda6e5eff41",
 		Status: "COMPLETED",
 	}
 
-	assert.Equal(t, "report123", status.Id)
+	assert.Equal(t, "bed2ffcb-9822-4dd1-bc8b-3eda6e5eff41", status.Id)
 	assert.Equal(t, "COMPLETED", status.Status)
 }
 
 func TestReportConfigurations(t *testing.T) {
 	config := ReportConfigurations{
 		ContentType: "Course,Assessment",
+		End:         time.Now(),
+		Start:       time.Now().Add(-time.Hour * 24 * 30),
+		Sort:        &ReportSort{Field: "completedDate", Order: "desc"},
 	}
 
 	assert.Equal(t, "Course,Assessment", config.ContentType)
+	assert.Equal(t, time.Now(), config.End)
+	assert.Equal(t, time.Now().Add(-time.Hour*24*30), config.Start)
+	assert.Equal(t, "completedDate", config.Sort.Field)
+	assert.Equal(t, "desc", config.Sort.Order)
 }
 
 func TestReportType(t *testing.T) {
 	// Test that Report is a slice of ReportEntry
 	report := Report{
 		{
-			UserId:    "user1",
-			ContentId: "course1",
-			Status:    "Completed",
+			UserUUID:    "a77840ca-ea10-4da8-b64f-bddf714c47a0",
+			ContentUUID: "1a3a3f54-b601-4d45-a234-038c980ee20f",
+			Status:      "Completed",
 		},
 		{
-			UserId:    "user2",
-			ContentId: "course2",
-			Status:    "Started",
+			UserUUID:    "a77840ca-ea10-4da8-b64f-bddf714c47a0",
+			ContentUUID: "1a3a3f54-b601-4d45-a234-038c980ee20f",
+			Status:      "Started",
 		},
 	}
 
 	assert.Len(t, report, 2)
-	assert.Equal(t, "user1", report[0].UserId)
-	assert.Equal(t, "course1", report[0].ContentId)
+	assert.Equal(t, "a77840ca-ea10-4da8-b64f-bddf714c47a0", report[0].UserUUID)
+	assert.Equal(t, "1a3a3f54-b601-4d45-a234-038c980ee20f", report[0].ContentUUID)
 	assert.Equal(t, "Completed", report[0].Status)
-	assert.Equal(t, "user2", report[1].UserId)
-	assert.Equal(t, "course2", report[1].ContentId)
+	assert.Equal(t, "a77840ca-ea10-4da8-b64f-bddf714c47a0", report[1].UserUUID)
+	assert.Equal(t, "1a3a3f54-b601-4d45-a234-038c980ee20f", report[1].ContentUUID)
 	assert.Equal(t, "Started", report[1].Status)
 }

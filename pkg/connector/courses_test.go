@@ -22,20 +22,20 @@ func TestCoursesList(t *testing.T) {
 			reportInitialized: true,
 			report: &client.Report{
 				{
-					UserId:       "user1",
-					ContentId:    "course1",
+					UserUUID:     "a77840ca-ea10-4da8-b64f-bddf714c47a0",
+					ContentUUID:  "1a3a3f54-b601-4d45-a234-038c980ee20f",
 					ContentTitle: "Introduction to Go",
 					Status:       "Completed",
 				},
 				{
-					UserId:       "user2", 
-					ContentId:    "course1", // Same course
+					UserUUID:     "a77840ca-ea10-4da8-b64f-bddf714c47a1",
+					ContentUUID:  "1a3a3f54-b601-4d45-a234-038c980ee20f", // Same course
 					ContentTitle: "Introduction to Go",
 					Status:       "Started",
 				},
 				{
-					UserId:       "user1",
-					ContentId:    "course2",
+					UserUUID:     "a77840ca-ea10-4da8-b64f-bddf714c47a0",
+					ContentUUID:  "1a3a3f54-b601-4d45-a234-038c980ee20f",
 					ContentTitle: "Advanced Go Patterns",
 					Status:       "Active",
 				},
@@ -67,14 +67,14 @@ func TestCoursesList(t *testing.T) {
 			reportInitialized: true,
 			report: &client.Report{
 				{
-					UserId:       "user1",
-					ContentId:    "", // Missing contentId
+					UserUUID:     "a77840ca-ea10-4da8-b64f-bddf714c47a0",
+					ContentUUID:  "", // Missing contentUUID
 					ContentTitle: "Course Without ID",
 					Status:       "Completed",
 				},
 				{
-					UserId:       "user1",
-					ContentId:    "course1",
+					UserUUID:     "a77840ca-ea10-4da8-b64f-bddf714c47a0",
+					ContentUUID:  "1a3a3f54-b601-4d45-a234-038c980ee20f",
 					ContentTitle: "Valid Course",
 					Status:       "Completed",
 				},
@@ -95,8 +95,8 @@ func TestCoursesList(t *testing.T) {
 			reportInitialized: true,
 			report: &client.Report{
 				{
-					UserId:       "user1",
-					ContentId:    "course1",
+					UserUUID:     "a77840ca-ea10-4da8-b64f-bddf714c47a0",
+					ContentUUID:  "1a3a3f54-b601-4d45-a234-038c980ee20f",
 					ContentTitle: "", // Missing title
 					Status:       "Completed",
 				},
@@ -237,8 +237,8 @@ func TestCoursesGrants(t *testing.T) {
 func TestCourseResource(t *testing.T) {
 	t.Run("should create course resource with name", func(t *testing.T) {
 		course := client.Course{
-			Id:   "course1",
-			Name: "Test Course",
+			Id:          "course1",
+			CourseTitle: "Test Course",
 		}
 
 		resource, err := courseResource(course, nil)
@@ -251,8 +251,8 @@ func TestCourseResource(t *testing.T) {
 
 	t.Run("should use ID as display name when name is empty", func(t *testing.T) {
 		course := client.Course{
-			Id:   "course1",
-			Name: "",
+			Id:          "course1",
+			CourseTitle: "",
 		}
 
 		resource, err := courseResource(course, nil)

@@ -21,5 +21,5 @@ var userResourceType = &v2.ResourceType{
 
 var courseResourceType = &v2.ResourceType{
 	Id:          "course",
-	DisplayName: "course",
+	DisplayName: "Course",
 }

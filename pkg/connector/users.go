@@ -44,8 +44,8 @@ func getDisplayName(user client.User) string {
 	if user.Email != "" {
 		return user.Email
 	}
-	if user.Id != "" {
-		return user.Id
+	if user.LoginID != "" {
+		return user.LoginID
 	}
 	return userFullNameDefault
 }
@@ -53,10 +53,12 @@ func getDisplayName(user client.User) string {
 // Create a new connector resource for a Percipio user.
 func userResource(user client.User, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
 	profile := map[string]interface{}{
-		"id":         user.Id,
-		"email":      user.Email,
-		"first_name": user.FirstName,
-		"last_name":  user.LastName,
+		"id":           user.Id,
+		"login_id":     user.LoginID,
+		"display_name": getDisplayName(user),
+		"email":        user.Email,
+		"first_name":   user.FirstName,
+		"last_name":    user.LastName,
 	}
 
 	userTraitOptions := []resourceSdk.UserTraitOption{
@@ -128,18 +130,19 @@ func (o *userBuilder) List(
 			mostRecentDate = entry.FirstAccess
 		}
 
-		if existing, exists := userMap[entry.UserId]; exists {
+		if existing, exists := userMap[entry.UserUUID]; exists {
 			// Compare dates to see if this entry is more recent
 			if mostRecentDate > existing.mostRecentDate {
 				// This entry is more recent, update the user data
 				logger.Debug("Updating user with more recent data",
-					zap.String("userId", entry.UserId),
+					zap.String("userId", entry.UserUUID),
 					zap.String("oldDate", existing.mostRecentDate),
 					zap.String("newDate", mostRecentDate))
 
-				userMap[entry.UserId] = userWithDate{
+				userMap[entry.UserUUID] = userWithDate{
 					user: client.User{
-						Id:        entry.UserId,
+						Id:        entry.UserUUID,
+						LoginID:   entry.UserId,
 						Email:     entry.EmailAddress,
 						FirstName: entry.FirstName,
 						LastName:  entry.LastName,
@@ -151,19 +154,20 @@ func (o *userBuilder) List(
 			// First time seeing this user
 			if entry.EmailAddress == "" {
 				logger.Warn("User missing email address",
-					zap.String("userId", entry.UserId),
+					zap.String("userId", entry.UserUUID),
 					zap.String("firstName", entry.FirstName),
 					zap.String("lastName", entry.LastName))
 			}
 			if entry.FirstName == "" && entry.LastName == "" {
 				logger.Warn("User missing name",
-					zap.String("userId", entry.UserId),
+					zap.String("userId", entry.UserUUID),
 					zap.String("email", entry.EmailAddress))
 			}
 
-			userMap[entry.UserId] = userWithDate{
+			userMap[entry.UserUUID] = userWithDate{
 				user: client.User{
-					Id:        entry.UserId,
+					Id:        entry.UserUUID,
+					LoginID:   entry.UserId,
 					Email:     entry.EmailAddress,
 					FirstName: entry.FirstName,
 					LastName:  entry.LastName,

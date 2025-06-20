@@ -80,15 +80,15 @@ func (c *Client) GenerateLearningActivityReport(
 ) {
 	logger := ctxzap.Extract(ctx)
 	now := time.Now()
-	
+
 	reportStart := now.Add(-lookbackPeriod)
-	
+
 	body := ReportConfigurations{
 		End:         now,
 		Start:       reportStart,
 		ContentType: "Course,Assessment",
 	}
-	
+
 	logger.Info("Initiating learning activity report generation",
 		zap.Time("report_start_date", reportStart),
 		zap.Time("report_end_date", now),
@@ -110,7 +110,7 @@ func (c *Client) GenerateLearningActivityReport(
 
 	// Should include ID and "PENDING".
 	c.ReportStatus = target
-	
+
 	logger.Debug("Report generation initiated",
 		zap.String("report_id", target.Id),
 		zap.String("report_status", target.Status))
@@ -131,7 +131,7 @@ func (c *Client) GetLearningActivityReport(
 
 	l := ctxzap.Extract(ctx)
 	var attempts int
-	for i := 0; i < config.RetryAttemptsMaximum; i++ {
+	for i := range config.RetryAttemptsMaximum {
 		attempts = i + 1
 		// Use an anonymous function to ensure proper resource cleanup with defer
 		shouldBreak := false
@@ -222,17 +222,17 @@ func (c *Client) GetLearningActivityReport(
 
 	// Store the raw report data
 	c.loadedReport = &target
-	
+
 	// Calculate approximate size
 	reportSizeBytes := 0
 	for _, entry := range target {
 		// Rough estimation of bytes per entry
-		reportSizeBytes += len(entry.UserId) + len(entry.EmailAddress) + 
+		reportSizeBytes += len(entry.UserUUID) + len(entry.EmailAddress) + len(entry.UserId) +
 			len(entry.FirstName) + len(entry.LastName) +
-			len(entry.ContentId) + len(entry.ContentTitle) +
+			len(entry.ContentUUID) + len(entry.ContentTitle) +
 			len(entry.Status) + 100 // overhead for other fields
 	}
-	
+
 	l.Debug("Report data statistics",
 		zap.Int("entries", len(target)),
 		zap.Int("estimated_size_bytes", reportSizeBytes),

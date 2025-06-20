@@ -41,9 +41,9 @@ func courseResource(course client.Course, parentResourceID *v2.ResourceId) (*v2.
 	}
 
 	// Use course name, fallback to ID if name is empty
-	displayName := course.Name
+	displayName := course.CourseTitle
 	if displayName == "" {
-		displayName = course.Id
+		displayName = course.CourseTitle
 	}
 
 	resource, err := resourceSdk.NewResource(
@@ -88,10 +88,9 @@ func (o *courseBuilder) List(
 	// Extract unique courses from report
 	courseMap := make(map[string]client.Course)
 	for _, entry := range *o.connector.report {
-		// Use contentId as the primary identifier
-		courseId := entry.ContentId
+		courseId := entry.ContentUUID
 		if courseId == "" {
-			logger.Warn("Course missing contentId, skipping",
+			logger.Warn("Course missing contentUUID, skipping",
 				zap.String("contentTitle", entry.ContentTitle),
 				zap.String("contentUuid", entry.ContentUUID),
 				zap.String("contentType", entry.ContentType))
@@ -107,9 +106,8 @@ func (o *courseBuilder) List(
 			}
 
 			courseMap[courseId] = client.Course{
-				Id:   courseId,
-				Name: entry.ContentTitle,
-				// UUID: entry.ContentUuid, // Commented out as per requirements
+				Id:          courseId,
+				CourseTitle: entry.ContentTitle,
 			}
 		}
 	}
@@ -187,7 +185,7 @@ func (o *courseBuilder) Grants(
 	// Report is already loaded during sync initialization
 	// Just get the status map for this course
 	statusesMap := o.client.StatusesStore.Get(resource.Id.Resource)
-	
+
 	logger.Debug("Looking up grants for course",
 		zap.String("course_id", resource.Id.Resource),
 		zap.String("course_name", resource.DisplayName),
@@ -195,7 +193,7 @@ func (o *courseBuilder) Grants(
 
 	grants := make([]*v2.Grant, 0)
 	statusCounts := make(map[string]int)
-	
+
 	for userId, status := range statusesMap {
 		principalId, err := resourceSdk.NewResourceID(userResourceType, userId)
 		if err != nil {
@@ -209,7 +207,7 @@ func (o *courseBuilder) Grants(
 		grants = append(grants, nextGrant)
 		statusCounts[status]++
 	}
-	
+
 	if len(grants) > 0 {
 		logger.Debug("Grants created for course",
 			zap.String("course_id", resource.Id.Resource),

@@ -22,28 +22,28 @@ type StatusesStore map[string]map[string]string
 func (r StatusesStore) Load(ctx context.Context, report *Report) error {
 	logger := ctxzap.Extract(ctx)
 	startTime := time.Now()
-	
+
 	logger.Debug("Starting to load status store from report",
 		zap.Int("report_entries", len(*report)))
-	
+
 	totalEntries := 0
 	uniqueCourses := 0
 	uniqueUsers := make(map[string]bool)
 	statusCounts := make(map[string]int)
-	
+
 	for _, row := range *report {
-		// Use ContentId as the key instead of ContentUUID
-		found, ok := r[row.ContentId]
+		// Use ContentUUID as the key
+		found, ok := r[row.ContentUUID]
 		if !ok {
 			found = make(map[string]string)
 			uniqueCourses++
 		}
 
 		status := toStatus(row.Status)
-		found[row.UserId] = status
-		r[row.ContentId] = found
-		
-		uniqueUsers[row.UserId] = true
+		found[row.UserUUID] = status
+		r[row.ContentUUID] = found
+
+		uniqueUsers[row.UserUUID] = true
 		statusCounts[status]++
 		totalEntries++
 	}
@@ -60,8 +60,8 @@ func (r StatusesStore) Load(ctx context.Context, report *Report) error {
 
 // Get - return a mapping of user IDs to course completion status.
 // TODO(marcos) Should we use enums instead?
-func (r StatusesStore) Get(courseId string) map[string]string {
-	found, ok := r[courseId]
+func (r StatusesStore) Get(courseUUID string) map[string]string {
+	found, ok := r[courseUUID]
 	if !ok {
 		// `nil` and empty map are equivalent.
 		return nil
@@ -77,6 +77,6 @@ func toStatus(status string) string {
 	case "Started", "Active":
 		return "in_progress"
 	default:
-		return "in_progress" // Default to in_progress for any other status
+		return "Status Undefined" // Default to in_progress for any other status
 	}
 }

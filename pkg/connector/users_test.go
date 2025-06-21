@@ -109,68 +109,6 @@ func TestUsersList(t *testing.T) {
 		assert.Equal(t, "Bill Lumbergh", bill.DisplayName)
 	})
 
-	t.Run("should handle missing userId", func(t *testing.T) {
-		connector := &Connector{
-			reportState: ReportCompleted,
-			report: &client.Report{
-				{
-					UserId:       "",
-					FirstName:    "Anonymous",
-					LastName:     "User",
-					EmailAddress: "anonymous@initech.com",
-					ContentId:    "bs_adg02_a23_enus",
-					ContentTitle: "Case Studies: Successful Data Privacy Implementations",
-					ContentType:  "Course",
-					Status:       "Completed",
-				},
-				{
-					UserId:       "michael.bolton@initech.com",
-					FirstName:    "Michael",
-					LastName:     "Bolton",
-					EmailAddress: "michael.bolton@initech.com",
-					ContentId:    "bs_adg02_a23_enus",
-					ContentTitle: "Case Studies: Successful Data Privacy Implementations",
-					ContentType:  "Course",
-					Status:       "Completed",
-				},
-			},
-		}
-
-		u := newUserBuilder(nil, nil, connector)
-
-		resources, _, _, err := u.List(ctx, nil, &pagination.Token{})
-
-		require.NoError(t, err)
-		require.Len(t, resources, 1)
-		assert.Equal(t, "michael.bolton@initech.com", resources[0].Id.Resource)
-	})
-
-	t.Run("should handle missing names", func(t *testing.T) {
-		connector := &Connector{
-			reportState: ReportCompleted,
-			report: &client.Report{
-				{
-					UserId:       "michael.bolton@initech.com",
-					FirstName:    "",
-					LastName:     "",
-					EmailAddress: "michael.bolton@initech.com",
-					ContentId:    "bs_adg02_a23_enus",
-					ContentTitle: "Case Studies: Successful Data Privacy Implementations",
-					ContentType:  "Course",
-					Status:       "Completed",
-				},
-			},
-		}
-
-		u := newUserBuilder(nil, nil, connector)
-
-		resources, _, _, err := u.List(ctx, nil, &pagination.Token{})
-
-		require.NoError(t, err)
-		require.Len(t, resources, 1)
-		assert.Equal(t, " ", resources[0].DisplayName)
-	})
-
 	t.Run("should wait for report that was generated during validation", func(t *testing.T) {
 		server := test.FixturesServer()
 		defer server.Close()

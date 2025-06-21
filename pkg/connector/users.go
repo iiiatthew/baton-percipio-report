@@ -34,7 +34,6 @@ func getDisplayName(user client.User) string {
 func userResource(user client.User, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
 	profile := map[string]interface{}{
 		"id":           user.Id,
-		"login_id":     user.Id,
 		"display_name": getDisplayName(user),
 		"email":        user.Email,
 		"first_name":   user.FirstName,

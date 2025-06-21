@@ -251,7 +251,7 @@ func (c *Client) GetLearningActivityReport(
 			Status:    v2.RateLimitDescription_STATUS_UNSPECIFIED,
 		}
 	} else {
-		// Otherwise fetch the report data using baton-sdk (cached is fine for the final data)
+		// Otherwise fetch the report data
 		var target Report
 		response, rateLimit, err := c.get(
 			ctx,
